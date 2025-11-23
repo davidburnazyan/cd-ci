@@ -37,7 +37,17 @@ jobs:
           source: ".next/**"
           target: "/var/www/cd-ci"   # <-- update your server path
 
-      # (Optional) 5. Restart Nginx
+      # 5. PM2 Restart
+      - name: Restart PM2 App
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            pm2 restart 0   # <-- change to your PM2 process name
+
+      # (Optional) 6. Restart Nginx
       - name: Restart Nginx
         uses: appleboy/ssh-action@v1.0.0
         with:
