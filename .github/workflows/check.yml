@@ -38,7 +38,7 @@ jobs:
 
       # 6. Prepare build artifact
       - name: Tar build folder
-        run: tar -czf build.tar.gz .next package.json next.config.js
+        run: tar -czf build.tar.gz .next package.json next.config.ts
 
       # 7. Upload to server
       - name: Upload build to server
