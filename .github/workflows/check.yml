@@ -20,7 +20,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           source: "."
-          target: "/var/www/cd-ci"   # change to your project folder
+          target: "/var/www/cd-ci"
 
       # 3. SSH into server and build
       - name: Build project on server
