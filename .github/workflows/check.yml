@@ -21,7 +21,7 @@ jobs:
 
       # 3. Install and Build
       - name: Install dependencies
-        run: npm install
+        run: npm installgit
 
       - name: Build React app
         run: npm run build
@@ -34,7 +34,7 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
-          source: "build/*"
+          source: ".next/**"
           target: "/var/www/cd-ci"   # <-- update your server path
 
       # (Optional) 5. Restart Nginx
