@@ -1,7 +1,6 @@
-import Image from "next/image";
 
 export default function Home() {
   return (
-    <div>david 1</div>
+    <div>david 1 2</div>
   );
 }
