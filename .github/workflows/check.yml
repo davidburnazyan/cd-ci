@@ -1,40 +1,38 @@
-name: Build on Main
-
 on:
   push:
     branches: ["main"]
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
 
-    steps: 
-      - name: Checkout repository
-        uses: actions/checkout@v5
+    steps:
+      # 1. Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      # 2. Copy project files to server (optional)
+      - name: Upload files to server
+        uses: appleboy/scp-action@v0.1.4
         with:
-          node-version: "24"
-          cache: "npm"
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          source: "."
+          target: "/var/www/cd-ci"   # change to your project folder
 
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Build Project
-        run: npm run build
-
-      - name: Deploy to Server
-        uses: appleboy/scp-action@v1
+      # 3. SSH into server and build
+      - name: Build project on server
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           script: |
             cd /var/www/cd-ci
-            git pull
             npm install
             npm run build
+            pm2 restart my-app || true   # optional if using pm2
 
       
       
