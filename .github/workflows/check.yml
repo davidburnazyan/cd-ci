@@ -1,3 +1,5 @@
+name: Deploy on Main Push
+
 on:
   push:
     branches: ["main"]
@@ -32,7 +34,4 @@ jobs:
             cd /var/www/cd-ci
             npm install
             npm run build
-            pm2 restart my-app || true   # optional if using pm2
-
-      
-      
+            pm2 restart cd-ci || true   # optional if using pm2
