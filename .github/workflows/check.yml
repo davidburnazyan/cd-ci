@@ -26,6 +26,7 @@ jobs:
       - name: Build React app
         run: npm run build
 
+        #
       # 4. Deploy build folder to server using username + password
       - name: Upload build folder to server
         uses: appleboy/scp-action@v0.1.4
