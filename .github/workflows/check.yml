@@ -1,4 +1,4 @@
-name: Build & Deploy React App
+name: Build & Deploy Next.js App
 
 on:
   push:
@@ -9,50 +9,65 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout Code
-      - name: Checkout code
+      # 1. Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. Setup Node
-      - name: Setup Node
+      # 2. Cache node_modules
+      - name: Cache NPM dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      # 3. Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 24
 
-      # 3. Install and Build
+      # 4. Install dependencies
       - name: Install dependencies
         run: npm install
 
-      - name: Build React app
+      # 5. Build Next.js
+      - name: Build Next.js app
         run: npm run build
 
-        #
-      # 4. Deploy build folder to server using username + password
-      - name: Upload build folder to server
+      # 6. Prepare build artifact
+      - name: Tar build folder
+        run: tar -czf build.tar.gz .next package.json next.config.js
+
+      # 7. Upload to server
+      - name: Upload build to server
         uses: appleboy/scp-action@v0.1.4
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          source: ".next/**"
-          target: "/var/www/cd-ci"   # <-- update your server path
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "build.tar.gz"
+          target: "/var/www/cd-ci"
 
-      # 5. PM2 Restart
-      - name: Restart PM2 App
+      # 8. SSH into server and deploy
+      - name: Deploy on server
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            pm2 restart 0   # <-- change to your PM2 process name
+            cd /var/www/cd-ci
 
-      # (Optional) 6. Restart Nginx
-      - name: Restart Nginx
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          script: |
+            # Unpack new build
+            tar -xzf build.tar.gz
+
+            # Reinstall server dependencies
+            npm install --production
+
+            # Restart PM2 by app name (safer)
+            pm2 restart cd-ci-app || pm2 start npm --name "cd-ci-app" -- run start
+
+            # Optional: restart nginx
             sudo systemctl restart nginx
