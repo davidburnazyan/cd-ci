@@ -5,52 +5,64 @@ on:
     branches: ["main"]
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout code
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # 2. Cache node_modules
-      - name: Cache NPM dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
-
-      # 3. Setup Node
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 24
+          cache: "npm"
 
-      # 4. Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # 5. Build Next.js
-      - name: Build Next.js app
+      - name: Build Next.js
         run: npm run build
 
-      # 6. Prepare build artifact
-      - name: Tar build folder
-        run: tar -czf build.tar.gz .next package.json next.config.ts
+      # Upload only what server needs
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-build
+          path: |
+            .next
+            package.json
+            next.config.*
+            public
+          retention-days: 1
 
-      # 7. Upload to server
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      # Download artifact directly into workspace root
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: next-build
+          path: ./
+
+      # Upload files to server in correct structure
       - name: Upload build to server
         uses: appleboy/scp-action@v0.1.4
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "build.tar.gz"
+          source: |
+            .next
+            package.json
+            public
+            next.config.*
           target: "/var/www/cd-ci"
 
-      # 8. SSH into server and deploy
+      # SSH deploy on server
       - name: Deploy on server
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -60,14 +72,11 @@ jobs:
           script: |
             cd /var/www/cd-ci
 
-            # Unpack new build
-            tar -xzf build.tar.gz
-
-            # Reinstall server dependencies
+            # Install only production deps
             npm install --production
 
-            # Restart PM2 by app name (safer)
-            pm2 restart cd-ci-app || pm2 start npm --name "cd-ci-app" -- run start
+            # Zero-downtime reload if app exists, otherwise start
+            pm2 reload cd-ci-app || pm2 start npm --name "cd-ci-app" -- run start
 
-            # Optional: restart nginx
+            # Optional: restart Nginx if needed
             sudo systemctl restart nginx
