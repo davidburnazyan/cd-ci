@@ -16,8 +16,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Setup Node.js with caching
+      # 2. Setup Node.js + auto npm cache
       - name: Setup Node.js
+      ...
         uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -35,7 +36,7 @@ jobs:
       - name: TypeScript check
         run: npm run tsc
 
-      # 6. Build Next.js
+      # 6. Build Next.js app
       - name: Build Next.js app
         run: npm run build
 
@@ -67,17 +68,18 @@ jobs:
           name: nextjs-build
           path: build
 
-      # 2. Upload build files to server (includes hidden .next directory)
+      # 2. Upload build to server (corrected path: build/**)
       - name: Upload build to server via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: ".next/**"
+          source: "build/**"
           target: "/var/www/cd-ci"
+          rm: false
 
-      # 3. SSH to server and deploy
+      # 3. SSH into server and deploy
       - name: Deploy on server
         uses: appleboy/ssh-action@v1.1.0
         with:
@@ -90,7 +92,7 @@ jobs:
             echo "📦 Installing production dependencies..."
             npm ci --omit=dev
 
-            echo "🔁 Restarting PM2..."
+            echo "🔁 Reloading PM2..."
             pm2 reload cd-ci-app || pm2 start npm --name "cd-ci-app" -- run start
 
             echo "🔃 Restarting Nginx..."
