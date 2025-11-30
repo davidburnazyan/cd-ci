@@ -35,24 +35,23 @@ jobs:
       - name: TypeScript check
         run: npm run tsc
 
-      # # 6. Tests
-      # - name: Run tests
-      #   run: npm test --if-present
-
-      # 7. Build
+      # 6. Build Next.js
       - name: Build Next.js app
         run: npm run build
 
-      # 8. Prepare artifact
-      - name: Create build artifact
-        run: tar -czf build.tar.gz .next package.json next.config.* public
-
-      # 9. Upload as workflow artifact (for debugging)
-      - name: Upload build artifact (optional)
+      # 7. Upload build artifacts
+      - name: Upload Next.js build output
         uses: actions/upload-artifact@v4
         with:
           name: nextjs-build
-          path: build.tar.gz
+          path: |
+            .next
+            public
+            package.json
+            package-lock.json
+            next.config.*
+          retention-days: 3
+
 
   deploy:
     name: Deploy to Server
@@ -61,21 +60,21 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
-      # 1. Download artifact
+      # 1. Download build artifact
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
           name: nextjs-build
-          path: .
+          path: build
 
-      # 2. Upload artifact to server
+      # 2. Upload build files to server
       - name: Upload build to server via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "build.tar.gz"
+          source: "build/*"
           target: "/var/www/cd-ci"
 
       # 3. SSH to server and deploy
@@ -88,17 +87,21 @@ jobs:
           script: |
             cd /var/www/cd-ci
 
-            echo "🗑 Removing old build..."
+            echo "🗑 Removing old .next..."
             rm -rf .next
 
-            echo "📦 Extracting new build..."
-            tar -xzf build.tar.gz
+            echo "📦 Moving new build..."
+            mv build/.next .next
+            mv build/public public
+            mv build/package.json package.json
+            mv build/package-lock.json package-lock.json
+            mv build/next.config.* .
 
             echo "📦 Installing production dependencies..."
             npm ci --omit=dev
 
             echo "🔁 Restarting PM2..."
-            pm2 reload cd-ci-app
+            pm2 reload cd-ci-app || pm2 start npm --name "cd-ci-app" -- run start
 
             echo "🔃 Restarting Nginx..."
             sudo systemctl restart nginx
