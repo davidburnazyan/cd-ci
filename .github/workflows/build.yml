@@ -32,6 +32,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Type Check
+        run: npm run tsc
+
       # 5. Build Next.js
       - name: Build Next.js app
         run: npm run build
