@@ -87,15 +87,6 @@ jobs:
           script: |
             cd /var/www/cd-ci
 
-            echo "🗑 Removing old .next..."
-            # rm -rf .next
-
-            echo "📦 Removing old public folder..."
-            # rm -rf public
-
-            echo "📦 New build uploaded — applying..."
-            # (Files already uploaded directly: .next, public, package.json, etc.)
-
             echo "📦 Installing production dependencies..."
             npm ci --omit=dev
 
