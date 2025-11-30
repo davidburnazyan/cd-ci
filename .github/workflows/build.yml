@@ -1,54 +1,76 @@
-name: Build & Deploy Next.js App
+name: CI & Deploy Next.js App
 
 on:
   push:
     branches: ["main"]
+  pull_request:
+    branches: ["main"]
 
 jobs:
-  build-and-deploy:
+  build:
+    name: Build & Validate
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout code
-      - name: Checkout repository
-        uses: actions/checkout@v5
+      # 1. Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      # 2. Cache node_modules
-      - name: Cache NPM dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
-
-      # 3. Setup Node
+      # 2. Setup Node.js with caching
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: 'npm'
 
-      # 4. Install dependencies
+      # 3. Install dependencies
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Lint
+      # 4. Lint
+      - name: Lint code
         run: npm run lint
 
-      - name: Type Check
+      # 5. Type checking
+      - name: TypeScript check
         run: npm run tsc
 
-      # 5. Build Next.js
+      # # 6. Tests
+      # - name: Run tests
+      #   run: npm test --if-present
+
+      # 7. Build
       - name: Build Next.js app
         run: npm run build
 
-      # 6. Prepare build artifact
-      - name: Tar build folder
-        run: tar -czf build.tar.gz .next package.json next.config.ts
+      # 8. Prepare artifact
+      - name: Create build artifact
+        run: tar -czf build.tar.gz .next package.json next.config.* public
 
-      # 7. Upload to server
-      - name: Upload build to server
-        uses: appleboy/scp-action@v0.1.4
+      # 9. Upload as workflow artifact (for debugging)
+      - name: Upload build artifact (optional)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextjs-build
+          path: build.tar.gz
+
+  deploy:
+    name: Deploy to Server
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      # 1. Download artifact
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nextjs-build
+          path: .
+
+      # 2. Upload artifact to server
+      - name: Upload build to server via SCP
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
@@ -56,9 +78,9 @@ jobs:
           source: "build.tar.gz"
           target: "/var/www/cd-ci"
 
-      # 8. SSH into server and deploy
+      # 3. SSH to server and deploy
       - name: Deploy on server
-        uses: appleboy/ssh-action@v1.0.0
+        uses: appleboy/ssh-action@v1.1.0
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
@@ -66,14 +88,19 @@ jobs:
           script: |
             cd /var/www/cd-ci
 
-            # Unpack new build
+            echo "🗑 Removing old build..."
+            rm -rf .next
+
+            echo "📦 Extracting new build..."
             tar -xzf build.tar.gz
 
-            # Reinstall server dependencies
-            npm install --production
+            echo "📦 Installing production dependencies..."
+            npm ci --omit=dev
 
-            # Restart PM2 by app name (safer)
-            pm2 restart cd-ci-app || pm2 start npm --name "cd-ci-app" -- run start
+            echo "🔁 Restarting PM2..."
+            pm2 reload cd-ci || pm2 start npm --name "cd-ci" -- run start
 
-            # Optional: restart nginx
+            echo "🔃 Restarting Nginx..."
             sudo systemctl restart nginx
+
+            echo "🚀 Deployment complete!"
