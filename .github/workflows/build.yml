@@ -5,17 +5,13 @@ on:
     branches: ["main"]
 
 jobs:
-  # -------------------------------
-  # 1) BUILD JOB
-  # -------------------------------
-  build:
-    name: Build Next.js App
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repo
+      # 1. Checkout code
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # 2. Cache node_modules
       - name: Cache NPM dependencies
@@ -28,55 +24,23 @@ jobs:
 
       # 3. Setup Node
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
-          node-version: 20
-          check-latest: true
+          node-version: 24
 
       # 4. Install dependencies
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       # 5. Build Next.js
       - name: Build Next.js app
         run: npm run build
 
-      # 6. Upload production artifact (only what server needs)
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: next-build
-          path: |
-            .next
-            public
-            package.json
-            next.config.js
-            next.config.ts
-            node_modules
-          retention-days: 1
+      # 6. Prepare build artifact
+      - name: Tar build folder
+        run: tar -czf build.tar.gz .next package.json next.config.ts
 
-
-  # -------------------------------
-  # 2) DEPLOY JOB
-  # -------------------------------
-  deploy:
-    name: Deploy to Server
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      # 1. Download artifact from build job
-      - name: Download built artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: next-build
-          path: ./deploy
-
-      # 2. Compress build output (GitHub artifacts cannot send folders via SCP without packaging)
-      - name: Create deployment archive
-        run: tar -czf build.tar.gz -C deploy .
-
-      # 3. Copy artifact to server
+      # 7. Upload to server
       - name: Upload build to server
         uses: appleboy/scp-action@v0.1.4
         with:
@@ -86,8 +50,8 @@ jobs:
           source: "build.tar.gz"
           target: "/var/www/cd-ci"
 
-      # 4. Connect to server & deploy
-      - name: Run deployment on server
+      # 8. SSH into server and deploy
+      - name: Deploy on server
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -96,19 +60,14 @@ jobs:
           script: |
             cd /var/www/cd-ci
 
-            echo "Removing old build..."
-            rm -rf .next public node_modules package.json next.config.js next.config.ts
-
-            echo "Extracting new build..."
+            # Unpack new build
             tar -xzf build.tar.gz
 
-            echo "Installing production dependencies..."
-            npm install --omit=dev
+            # Reinstall server dependencies
+            npm install --production
 
-            echo "Restarting PM2..."
+            # Restart PM2 by app name (safer)
             pm2 restart cd-ci-app || pm2 start npm --name "cd-ci-app" -- run start
 
-            echo "Restarting NGINX..."
+            # Optional: restart nginx
             sudo systemctl restart nginx
-
-            echo "Deployment finished."
