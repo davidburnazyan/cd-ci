@@ -74,7 +74,7 @@ jobs:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "build/."
+          source: ".next/**"
           target: "/var/www/cd-ci"
 
       # 3. SSH to server and deploy
