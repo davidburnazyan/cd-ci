@@ -67,14 +67,14 @@ jobs:
           name: nextjs-build
           path: build
 
-      # 2. Upload build files to server
+      # 2. Upload build files to server (includes hidden .next directory)
       - name: Upload build to server via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "build/*"
+          source: "build/."
           target: "/var/www/cd-ci"
 
       # 3. SSH to server and deploy
@@ -90,11 +90,11 @@ jobs:
             echo "🗑 Removing old .next..."
             rm -rf .next
 
-            echo "📦 Cleaning old public folder..."
+            echo "📦 Removing old public folder..."
             rm -rf public
 
-            echo "📦 New build already uploaded — applying..."
-            # Nothing to mv — files were uploaded directly (.next, public, package.json, etc.)
+            echo "📦 New build uploaded — applying..."
+            # (Files already uploaded directly: .next, public, package.json, etc.)
 
             echo "📦 Installing production dependencies..."
             npm ci --omit=dev
