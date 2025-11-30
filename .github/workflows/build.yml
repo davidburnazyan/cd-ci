@@ -101,7 +101,7 @@ jobs:
             npm ci --omit=dev
 
             echo "🔁 Restarting PM2..."
-            pm2 reload cd-ci-app
+            pm2 reload cd-ci-app || pm2 start npm --name "cd-ci-app" -- run start
 
             echo "🔃 Restarting Nginx..."
             sudo systemctl restart nginx
