@@ -15,20 +15,28 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 20
           cache: "npm"
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build project
-        run: npm run build
+      - name: Build (Next.js standalone)
+        run: |
+          echo "Building Next.js app..."
+          npm run build
+          echo "FILES IN .next:"
+          ls -la .next || echo ".next not found!"
 
       - name: Upload build artifact (no tar)
         uses: actions/upload-artifact@v4
         with:
           name: next-build
-          path: .next/**
+          path: |
+            .next/standalone/
+            .next/static/
+            public/
+            package.json
           if-no-files-found: error
 
   deploy:
@@ -40,32 +48,31 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: next-build
-          path: next-build
+          path: deploy
 
       - name: Copy build to server (no tar)
         uses: appleboy/scp-action@v0.1.4
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}     # or password:
-          # password: ${{ secrets.SERVER_PASSWORD }}
-          
-          source: "next-build/*"
-          target: "/var/www/cd-ci/.next"
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "deploy/*"
+          target: "/var/www/cd-ci"
+          strip_components: 0
+          rm: false
+          debug: true
 
-          strip_components: 0        # disables tar internally
-          rm: true                   # remove local after sending
-          debug: true                # show detailed logs
-          timeout: 200s
-
-      - name: Restart PM2
+      - name: Install production modules & restart PM2
         uses: appleboy/ssh-action@v1.1.0
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}     # or password:
-          # password: ${{ secrets.SERVER_PASSWORD }}
-
+          key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /var/www/myapp
-            pm2 restart cd-ci-app || pm2 start npm --name "cd-ci-app" -- start
+            cd /var/www/cd-ci
+
+            echo "Installing production dependencies..."
+            npm ci --omit=dev
+
+            echo "Restarting PM2..."
+            pm2 restart cd-ci-app || pm2 start .next/standalone/server.js --name cd-ci-app
