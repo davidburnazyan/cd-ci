@@ -90,12 +90,11 @@ jobs:
             echo "🗑 Removing old .next..."
             rm -rf .next
 
-            echo "📦 Moving new build..."
-            mv build/.next .next
-            mv build/public public
-            mv build/package.json package.json
-            mv build/package-lock.json package-lock.json
-            mv build/next.config.* .
+            echo "📦 Cleaning old public folder..."
+            rm -rf public
+
+            echo "📦 New build already uploaded — applying..."
+            # Nothing to mv — files were uploaded directly (.next, public, package.json, etc.)
 
             echo "📦 Installing production dependencies..."
             npm ci --omit=dev
