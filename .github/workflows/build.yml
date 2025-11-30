@@ -1,8 +1,8 @@
-name: Build & Deploy Next.js App
+name: Next.js CI/CD
 
 on:
   push:
-    branches: ["main"]
+    branches: [ main ]
 
 jobs:
   build:
@@ -10,56 +10,62 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: "npm"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build Next.js
+      - name: Build project
         run: npm run build
 
-      # Upload only what server needs
-      - name: Upload build artifact
+      - name: Upload build artifact (no tar)
         uses: actions/upload-artifact@v4
         with:
           name: next-build
-          path: |
-            .next
-            package.json
-            next.config.*
-            public
-          retention-days: 1
+          path: .next/
+          if-no-files-found: error
 
   deploy:
-      needs: build
-      runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
+    needs: build
 
-      steps:
-        - name: Download artifact
-          uses: actions/download-artifact@v4
-          with:
-            name: next-build
-            path: .
-            merge-multiple: true
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: next-build
+          path: next-build
 
-        - name: Debug workspace
-          run: ls -R .
+      - name: Copy build to server (no tar)
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}     # or password:
+          # password: ${{ secrets.SERVER_PASSWORD }}
+          
+          source: "next-build/*"
+          target: "/var/www/cd-ci/.next"
 
-        - name: Upload to server
-          uses: appleboy/scp-action@v0.1.4
-          with:
-            host: ${{ secrets.SERVER_IP }}
-            username: ${{ secrets.SERVER_USER }}
-            key: ${{ secrets.SERVER_SSH_KEY }}
-            source: |
-              .next/**
-              package.json
-              public/**
-              next.config.*
-            target: "/var/www/cd-ci"
+          strip_components: 0        # disables tar internally
+          rm: true                   # remove local after sending
+          debug: true                # show detailed logs
+          timeout: 200s
+
+      - name: Restart PM2
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}     # or password:
+          # password: ${{ secrets.SERVER_PASSWORD }}
+
+          script: |
+            cd /var/www/myapp
+            pm2 restart cd-ci-app || pm2 start npm --name "cd-ci-app" -- start
