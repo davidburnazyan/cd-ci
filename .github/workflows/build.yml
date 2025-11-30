@@ -37,46 +37,29 @@ jobs:
           retention-days: 1
 
   deploy:
-    runs-on: ubuntu-latest
-    needs: build
+      needs: build
+      runs-on: ubuntu-latest
 
-    steps:
-      # Download artifact directly into workspace root
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: next-build
-          path: ./
+      steps:
+        - name: Download artifact
+          uses: actions/download-artifact@v4
+          with:
+            name: next-build
+            path: .
+            merge-multiple: true
 
-      # Upload files to server in correct structure
-      - name: Upload build to server
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          source: |
-            .next
-            package.json
-            public
-            next.config.*
-          target: "/var/www/cd-ci"
+        - name: Debug workspace
+          run: ls -R .
 
-      # SSH deploy on server
-      - name: Deploy on server
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            cd /var/www/cd-ci
-
-            # Install only production deps
-            npm install --production
-
-            # Zero-downtime reload if app exists, otherwise start
-            pm2 reload cd-ci-app || pm2 start npm --name "cd-ci-app" -- run start
-
-            # Optional: restart Nginx if needed
-            sudo systemctl restart nginx
+        - name: Upload to server
+          uses: appleboy/scp-action@v0.1.4
+          with:
+            host: ${{ secrets.SERVER_IP }}
+            username: ${{ secrets.SERVER_USER }}
+            key: ${{ secrets.SERVER_SSH_KEY }}
+            source: |
+              .next/**
+              package.json
+              public/**
+              next.config.*
+            target: "/var/www/cd-ci"
