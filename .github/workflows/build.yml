@@ -63,8 +63,7 @@ jobs:
           file: Dockerfile
           push: true
           tags: |
-            davidburnazyan/ci-cd-app:latest
-            davidburnazyan/ci-cd-app:${{ github.sha }}
+            davidburnazyan/ci-cd-app
 
   deploy:
     runs-on: ubuntu-latest
