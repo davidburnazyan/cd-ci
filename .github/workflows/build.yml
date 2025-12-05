@@ -120,7 +120,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            sudo docker pull davidburnazyan/ci-cd-app:latest
+            sudo docker pull davidburnazyan/ci-cd-app
             sudo docker stop cd-ci || true
             sudo docker rm cd-ci || true
-            sudo docker run -d --name cd-ci -p 3000:3000 davidburnazyan/ci-cd-app:latest
+            sudo docker run -d --name cd-ci -p 3000:3000 davidburnazyan/ci-cd-app
