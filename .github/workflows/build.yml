@@ -13,7 +13,7 @@ concurrency:
 env:
   NODE_VERSION: 20
   ARTIFACT_NAME: next-build
-  REGISTRY_IMAGE: davidburnazyan/ci-cd-app
+  REGISTRY_IMAGE: davidburnazyan/cd-ci
 
 permissions:
   contents: read
